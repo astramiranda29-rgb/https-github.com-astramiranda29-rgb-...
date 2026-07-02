@@ -1,0 +1,39 @@
+/**
+ * Utility functions for safe API requests and JSON parsing.
+ */
+
+export async function safeJson(res: Response): Promise<any> {
+  const contentType = res.headers.get("content-type");
+  
+  if (contentType && contentType.includes("application/json")) {
+    try {
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      // Fallback if JSON parsing fails on a JSON header (e.g. empty response)
+    }
+  }
+
+  try {
+    const text = await res.text();
+    const trimmed = text.trim();
+    
+    // If it is an HTML page (like a 502 Bad Gateway or 404 from the server)
+    if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.startsWith("<head")) {
+      return { error: `Servidor no disponible o error de ruta (HTTP ${res.status}: ${res.statusText || "Error"}).` };
+    }
+    
+    // If it is a JSON string masquerading as plain text
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (e) {
+        // ignore
+      }
+    }
+    
+    return { error: trimmed || `Error del servidor (HTTP ${res.status}: ${res.statusText || "Sin respuesta"}).` };
+  } catch (e) {
+    return { error: `Error de conexión o de red (HTTP ${res.status}: ${res.statusText || "Sin respuesta"}).` };
+  }
+}
